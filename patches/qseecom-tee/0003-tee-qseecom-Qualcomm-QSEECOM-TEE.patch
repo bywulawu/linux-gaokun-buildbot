@@ -1,4 +1,4 @@
-From ff02c665a76d57b7e04ff2f63785dc0f36ef9922 Mon Sep 17 00:00:00 2001
+From 207e0e8392af67e238899d46b916f51a8aacffd2 Mon Sep 17 00:00:00 2001
 From: verify <verify@local>
 Date: Thu, 1 Oct 2026 16:31:36 +0800
 Subject: [PATCH 3/3] =?UTF-8?q?tee:=20qseecom:=20=E5=A2=9E=E5=8A=A0=20Qual?=
@@ -55,7 +55,7 @@ https://github.com/wrobelda/goodix-fp-spi-linux
  create mode 100644 drivers/tee/qseecom/core.c
 
 diff --git a/Documentation/tee/index.rst b/Documentation/tee/index.rst
-index 10c3cec..d91e89d 100644
+index 10c3cecde..d91e89d1f 100644
 --- a/Documentation/tee/index.rst
 +++ b/Documentation/tee/index.rst
 @@ -12,3 +12,4 @@ TEE Subsystem
@@ -65,7 +65,7 @@ index 10c3cec..d91e89d 100644
 +   qseecom
 diff --git a/Documentation/tee/qseecom.rst b/Documentation/tee/qseecom.rst
 new file mode 100644
-index 0000000..63b7956
+index 000000000..63b795663
 --- /dev/null
 +++ b/Documentation/tee/qseecom.rst
 @@ -0,0 +1,287 @@
@@ -357,7 +357,7 @@ index 0000000..63b7956
 +whatever LSM policy the system uses. Widening it turns a trustlet bug into
 +local privilege escalation.
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 8014b9f..d6b9052 100644
+index 8014b9f82..d6b905224 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -22338,6 +22338,13 @@ L:	linux-arm-msm@vger.kernel.org
@@ -375,7 +375,7 @@ index 8014b9f..d6b9052 100644
  M:	Maximilian Luz <luzmaximilian@gmail.com>
  L:	linux-arm-msm@vger.kernel.org
 diff --git a/drivers/tee/Kconfig b/drivers/tee/Kconfig
-index 98c3ad0..6058c6d 100644
+index 98c3ad083..6058c6d8c 100644
 --- a/drivers/tee/Kconfig
 +++ b/drivers/tee/Kconfig
 @@ -21,5 +21,6 @@ source "drivers/tee/optee/Kconfig"
@@ -386,7 +386,7 @@ index 98c3ad0..6058c6d 100644
  
  endif
 diff --git a/drivers/tee/Makefile b/drivers/tee/Makefile
-index 3239b91..703f9b1 100644
+index 3239b91de..703f9b13e 100644
 --- a/drivers/tee/Makefile
 +++ b/drivers/tee/Makefile
 @@ -8,3 +8,4 @@ obj-$(CONFIG_OPTEE) += optee/
@@ -396,7 +396,7 @@ index 3239b91..703f9b1 100644
 +obj-$(CONFIG_TEE_QSEECOM) += qseecom/
 diff --git a/drivers/tee/qseecom/Kconfig b/drivers/tee/qseecom/Kconfig
 new file mode 100644
-index 0000000..3e29a09
+index 000000000..3e29a095e
 --- /dev/null
 +++ b/drivers/tee/qseecom/Kconfig
 @@ -0,0 +1,28 @@
@@ -430,7 +430,7 @@ index 0000000..3e29a09
 +	  Documentation/tee/qseecom.rst.
 diff --git a/drivers/tee/qseecom/Makefile b/drivers/tee/qseecom/Makefile
 new file mode 100644
-index 0000000..2a9233d
+index 000000000..2a9233dd3
 --- /dev/null
 +++ b/drivers/tee/qseecom/Makefile
 @@ -0,0 +1,3 @@
@@ -439,7 +439,7 @@ index 0000000..2a9233d
 +qseecomtee-objs += core.o
 diff --git a/drivers/tee/qseecom/core.c b/drivers/tee/qseecom/core.c
 new file mode 100644
-index 0000000..402ba88
+index 000000000..402ba887e
 --- /dev/null
 +++ b/drivers/tee/qseecom/core.c
 @@ -0,0 +1,1912 @@
@@ -2356,7 +2356,7 @@ index 0000000..402ba88
 +MODULE_DESCRIPTION("Qualcomm QSEECOM TEE driver");
 +MODULE_LICENSE("GPL");
 diff --git a/include/linux/soc/qcom/mdt_loader.h b/include/linux/soc/qcom/mdt_loader.h
-index 82372e0..6a33972 100644
+index 82372e0db..6a33972e9 100644
 --- a/include/linux/soc/qcom/mdt_loader.h
 +++ b/include/linux/soc/qcom/mdt_loader.h
 @@ -15,6 +15,9 @@ struct qcom_scm_pas_context;
