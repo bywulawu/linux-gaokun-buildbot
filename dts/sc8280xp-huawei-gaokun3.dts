@@ -212,6 +212,17 @@
 			no-map;
 		};
 
+		/* Per-device CMA for the SCM TrustZone memory allocator: the
+		 * QSEECOM TEE frontend needs multi-MiB physically contiguous
+		 * staging memory to load signed apps (e.g. the fingerprint TA).
+		 */
+		qseecom_cma: qseecom-cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0x0 0x1000000>;
+			alignment = <0x0 0x100000>;
+		};
+
 		linux,cma {
 			compatible = "shared-dma-pool";
 			size = <0x0 0x8000000>;
@@ -618,6 +629,10 @@
 		memory-region = <&gpu_mem>;
 		firmware-name = "qcom/sc8280xp/HUAWEI/gaokun3/qcdxkmsuc8280.mbn";
 	};
+};
+
+&scm {
+	memory-region = <&qseecom_cma>;
 };
 
 

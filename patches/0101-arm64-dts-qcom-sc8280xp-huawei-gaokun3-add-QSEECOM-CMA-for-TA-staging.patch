@@ -1,0 +1,56 @@
+From 9bd732b13a21872d3035c12330de6f72eea500ab Mon Sep 17 00:00:00 2001
+From: t <t@l>
+Date: Thu, 1 Oct 2026 21:57:24 +0800
+Subject: [PATCH] arm64: dts: qcom: sc8280xp-huawei-gaokun3: add per-device CMA
+ for SCM TZ memory
+
+The QSEECOM TEE frontend allocates multi-MiB physically contiguous
+staging memory from the SCM device to load signed TrustZone apps (e.g.
+the fingerprint TA).  The buddy allocator cannot reliably satisfy an
+order-11 allocation once the system is up, and the SCM platform device
+has no reserved memory bound, so these allocations fail with -ENOMEM.
+
+Add a 16 MiB reusable per-device CMA pool and bind it to the SCM
+device via memory-region; of_reserved_mem_device_init() (already
+called by the SCM driver) attaches it as dev->cma_area, from which
+dma_alloc_coherent() serves the staging allocations deterministically.
+---
+ .../boot/dts/qcom/sc8280xp-huawei-gaokun3.dts     | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
+index 268a441..14e9338 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
+@@ -212,6 +212,17 @@ gpu_mem: gpu-mem@8bf00000 {
+ 			no-map;
+ 		};
+ 
++		/* Per-device CMA for the SCM TrustZone memory allocator: the
++		 * QSEECOM TEE frontend needs multi-MiB physically contiguous
++		 * staging memory to load signed apps (e.g. the fingerprint TA).
++		 */
++		qseecom_cma: qseecom-cma {
++			compatible = "shared-dma-pool";
++			reusable;
++			size = <0x0 0x1000000>;
++			alignment = <0x0 0x100000>;
++		};
++
+ 		linux,cma {
+ 			compatible = "shared-dma-pool";
+ 			size = <0x0 0x8000000>;
+@@ -620,6 +631,10 @@ zap-shader {
+ 	};
+ };
+ 
++&scm {
++	memory-region = <&qseecom_cma>;
++};
++
+ 
+ &i2c4 {
+ 	clock-frequency = <1000000>;
+-- 
+2.53.0
+

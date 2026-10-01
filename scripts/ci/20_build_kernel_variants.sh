@@ -72,6 +72,8 @@ git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/qseecom-tee/*.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch
 # 0100 基于社区 DTS(0099 之后)的触屏上下文, 必须在 0099 之后应用, 因此与其并列放 patches/ 根
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0100-arm64-dts-qcom-sc8280xp-huawei-gaokun3-select-SPI-mode-for-touchscreen.patch
+# 0101 给 SCM 绑定专属 CMA, 供 QSEECOM TEE 加载 TA 的 staging 大块连续内存, 基于 0100 之后的 DTS
+git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0101-arm64-dts-qcom-sc8280xp-huawei-gaokun3-add-QSEECOM-CMA-for-TA-staging.patch
 
 ccache -z || true
 build_variant "$KERN_SRC" "$KERN_OUT"
