@@ -1,0 +1,272 @@
+From e76469f1df4569816b0efe3d1d59c199c4ca648f Mon Sep 17 00:00:00 2001
+From: verify <verify@local>
+Date: Thu, 1 Oct 2026 16:30:45 +0800
+Subject: [PATCH 1/3] =?UTF-8?q?soc:=20qcom:=20mdt=5Floader:=20=E6=94=AF?=
+ =?UTF-8?q?=E6=8C=81=E6=8C=89=E7=A8=8B=E5=BA=8F=E5=A4=B4=E9=A1=BA=E5=BA=8F?=
+ =?UTF-8?q?=E8=BF=9E=E7=BB=AD=E6=8B=BC=E8=A3=85=E9=95=9C=E5=83=8F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+从 wrobelda/linux qcom-qseecom-tee 分支移植（基线 v7.1.0，作者 Dawid Wróbel）。
+
+qcom_mdt_load() 回答的是 remoteproc 的问题：把 mdt 各段散布到 carveout 内的
+p_paddr。QSEECOM 的应用加载器要求相反的形态：.mdt 后跟按程序头顺序排列的各段
+载荷，组成单一连续缓冲区，由 mdt 长度 + 总长度描述。
+
+部分镜像的程序头无法当作文件布局：Qualcomm 签名应用存在 segment 0 声明
+p_offset 0（与 ELF/程序头重叠）、后段相同 p_offset 不同大小的情况。按程序头
+顺序连续拼装是厂商自有加载器的做法，安全世界只接受该形态。
+
+- 新增 qcom_mdt_get_image_size() 计算缓冲区大小
+- 新增 qcom_mdt_read_image() 填充镜像，复用现有 split-image 处理
+- QCOM_MDT_LOADER 增加 Kconfig prompt：TEE_QSEECOM 依赖它但不能 select
+  （select QCOM_SCM 会与既有依赖构成循环）
+
+无既有调用方行为变化。来源：
+https://github.com/wrobelda/linux/tree/qcom-qseecom-tee
+---
+ drivers/soc/qcom/Kconfig      |  10 +-
+ drivers/soc/qcom/mdt_loader.c | 183 ++++++++++++++++++++++++++++------
+ 2 files changed, 164 insertions(+), 29 deletions(-)
+
+diff --git a/drivers/soc/qcom/Kconfig b/drivers/soc/qcom/Kconfig
+index 2caadbb..b071ef3 100644
+--- a/drivers/soc/qcom/Kconfig
++++ b/drivers/soc/qcom/Kconfig
+@@ -59,8 +59,16 @@ config QCOM_KRYO_L2_ACCESSORS
+ 	depends on (ARCH_QCOM || COMPILE_TEST) && ARM64
+ 
+ config QCOM_MDT_LOADER
+-	tristate
++	tristate "Qualcomm MDT firmware loader"
++	depends on ARCH_QCOM || COMPILE_TEST
+ 	select QCOM_SCM
++	help
++	  Say y here to enable support for loading firmware in the Qualcomm
++	  MDT format: an ELF-like metadata file describing segments that are
++	  either carried in the same file or split out into .bNN files beside
++	  it. Drivers that load firmware into a Qualcomm remote processor or
++	  secure environment select this; it is also user-selectable so that
++	  it can be built for a consumer that only needs the parsing.
+ 
+ config QCOM_OCMEM
+ 	tristate "Qualcomm On Chip Memory (OCMEM) driver"
+diff --git a/drivers/soc/qcom/mdt_loader.c b/drivers/soc/qcom/mdt_loader.c
+index c004d44..8239155 100644
+--- a/drivers/soc/qcom/mdt_loader.c
++++ b/drivers/soc/qcom/mdt_loader.c
+@@ -5,6 +5,7 @@
+  * Copyright (C) 2016 Linaro Ltd
+  * Copyright (C) 2015 Sony Mobile Communications Inc
+  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
++ * Copyright (C) 2026 Dawid Wróbel <me@dawidwrobel.com>
+  */
+ 
+ #include <linux/cleanup.h>
+@@ -51,6 +52,20 @@ static bool mdt_header_valid(const struct firmware *fw)
+ 	return true;
+ }
+ 
++/*
++ * Does this segment contribute bytes to the image file?
++ *
++ * A different question from mdt_phdr_loadable(), which asks whether a segment
++ * is placed into the target memory region. A hash segment is not placed there
++ * -- it is metadata, handled by qcom_mdt_read_metadata() -- but it is very much
++ * part of the file, as is anything else carrying payload. Consumers that
++ * reassemble the image rather than load it want this one.
++ */
++static bool mdt_phdr_has_payload(const struct elf32_phdr *phdr)
++{
++	return phdr->p_filesz;
++}
++
+ static bool mdt_phdr_loadable(const struct elf32_phdr *phdr)
+ {
+ 	if (phdr->p_type != PT_LOAD)
+@@ -138,6 +153,146 @@ ssize_t qcom_mdt_get_size(const struct firmware *fw)
+ }
+ EXPORT_SYMBOL_GPL(qcom_mdt_get_size);
+ 
++static bool qcom_mdt_bins_are_split(const struct firmware *fw)
++{
++	const struct elf32_phdr *phdrs;
++	const struct elf32_hdr *ehdr;
++	uint64_t seg_start, seg_end;
++	int i;
++
++	ehdr = (struct elf32_hdr *)fw->data;
++	phdrs = (struct elf32_phdr *)(fw->data + ehdr->e_phoff);
++
++	for (i = 0; i < ehdr->e_phnum; i++) {
++		/*
++		 * The size of the MDT file is not padded to include any
++		 * zero-sized segments at the end. Ignore these, as they should
++		 * not affect the decision about image being split or not.
++		 */
++		if (!phdrs[i].p_filesz)
++			continue;
++
++		seg_start = phdrs[i].p_offset;
++		seg_end = phdrs[i].p_offset + phdrs[i].p_filesz;
++		if (seg_start > fw->size || seg_end > fw->size)
++			return true;
++	}
++
++	return false;
++}
++
++/**
++ * qcom_mdt_get_image_size() - size of the image as one contiguous blob
++ * @fw:		firmware object for the mdt file
++ *
++ * Some Qualcomm firmware loaders -- QSEECOM's application loader among them --
++ * take the whole image as a single buffer, the mdt followed by the segment
++ * payloads, rather than having the segments placed at their physical
++ * addresses. This returns the size such a buffer needs.
++ *
++ * Deliberately not qcom_mdt_get_size(), which reports the span from the lowest
++ * to the highest p_paddr: that is the memory region a remoteproc needs, and it
++ * bears no relation to how much file there is.
++ *
++ * Return: size in bytes, or negative errno on failure.
++ */
++ssize_t qcom_mdt_get_image_size(const struct firmware *fw)
++{
++	const struct elf32_phdr *phdrs;
++	const struct elf32_hdr *ehdr;
++	size_t size;
++	int i;
++
++	if (!mdt_header_valid(fw))
++		return -EINVAL;
++
++	/* A single-file image already is the blob. */
++	if (!qcom_mdt_bins_are_split(fw))
++		return fw->size;
++
++	ehdr = (struct elf32_hdr *)fw->data;
++	phdrs = (struct elf32_phdr *)(fw->data + ehdr->e_phoff);
++
++	size = fw->size;
++
++	for (i = 0; i < ehdr->e_phnum; i++) {
++		if (!mdt_phdr_has_payload(&phdrs[i]))
++			continue;
++
++		if (size + phdrs[i].p_filesz < size)
++			return -EINVAL;
++
++		size += phdrs[i].p_filesz;
++	}
++
++	return size;
++}
++EXPORT_SYMBOL_GPL(qcom_mdt_get_image_size);
++
++/**
++ * qcom_mdt_read_image() - assemble the image as one contiguous blob
++ * @dev:	device handle to associate resources with
++ * @fw:		firmware object for the mdt file
++ * @fw_name:	name of the firmware, for construction of segment file names
++ * @mem:	buffer to assemble into
++ * @mem_size:	size of @mem, at least qcom_mdt_get_image_size()
++ *
++ * Copies the mdt and then every segment that has one, in program-header order,
++ * one after another. This is the layout QSEECOM's application loader expects,
++ * and it is not the layout qcom_mdt_load() produces -- that one places
++ * segments at their p_paddr, which for some images is not a usable file layout
++ * at all: a segment may declare p_offset 0, overlapping the headers, and two
++ * segments may declare the same p_offset.
++ *
++ * Selected by mdt_phdr_has_payload() rather than mdt_phdr_loadable(): this is
++ * not a loading operation, so the question is which segments are part of the
++ * file, not which are placed in memory. The hash in particular is skipped by
++ * the latter but belongs here -- the secure world is handed the image whole and
++ * authenticates it whole, so dropping a segment shifts everything after it and
++ * the image is rejected.
++ *
++ * Return: number of bytes assembled, or negative errno on failure.
++ */
++ssize_t qcom_mdt_read_image(struct device *dev, const struct firmware *fw,
++			    const char *fw_name, void *mem, size_t mem_size)
++{
++	const struct elf32_phdr *phdrs;
++	const struct elf32_hdr *ehdr;
++	size_t off;
++	ssize_t ret;
++	int i;
++
++	ret = qcom_mdt_get_image_size(fw);
++	if (ret < 0)
++		return ret;
++
++	if (mem_size < (size_t)ret)
++		return -ENOSPC;
++
++	memcpy(mem, fw->data, fw->size);
++
++	if (!qcom_mdt_bins_are_split(fw))
++		return fw->size;
++
++	ehdr = (struct elf32_hdr *)fw->data;
++	phdrs = (struct elf32_phdr *)(fw->data + ehdr->e_phoff);
++	off = fw->size;
++
++	for (i = 0; i < ehdr->e_phnum; i++) {
++		if (!mdt_phdr_has_payload(&phdrs[i]))
++			continue;
++
++		ret = mdt_load_split_segment(mem + off, phdrs, i, fw_name, dev);
++		if (ret)
++			return ret;
++
++		off += phdrs[i].p_filesz;
++	}
++
++	return off;
++}
++EXPORT_SYMBOL_GPL(qcom_mdt_read_image);
++
+ /**
+  * qcom_mdt_read_metadata() - read header and metadata from mdt or mbn
+  * @fw:		firmware of mdt header or mbn
+@@ -292,34 +447,6 @@ static int __qcom_mdt_pas_init(struct device *dev, const struct firmware *fw,
+ 	return ret;
+ }
+ 
+-static bool qcom_mdt_bins_are_split(const struct firmware *fw)
+-{
+-	const struct elf32_phdr *phdrs;
+-	const struct elf32_hdr *ehdr;
+-	uint64_t seg_start, seg_end;
+-	int i;
+-
+-	ehdr = (struct elf32_hdr *)fw->data;
+-	phdrs = (struct elf32_phdr *)(fw->data + ehdr->e_phoff);
+-
+-	for (i = 0; i < ehdr->e_phnum; i++) {
+-		/*
+-		 * The size of the MDT file is not padded to include any
+-		 * zero-sized segments at the end. Ignore these, as they should
+-		 * not affect the decision about image being split or not.
+-		 */
+-		if (!phdrs[i].p_filesz)
+-			continue;
+-
+-		seg_start = phdrs[i].p_offset;
+-		seg_end = phdrs[i].p_offset + phdrs[i].p_filesz;
+-		if (seg_start > fw->size || seg_end > fw->size)
+-			return true;
+-	}
+-
+-	return false;
+-}
+-
+ /**
+  * qcom_mdt_load_no_init() - load the firmware which header is loaded as fw
+  * @dev:	device handle to associate resources with
+-- 
+2.53.0
+

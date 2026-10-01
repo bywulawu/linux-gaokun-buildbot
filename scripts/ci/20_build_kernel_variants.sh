@@ -67,6 +67,8 @@ configure_git_identity "$KERN_SRC"
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/upstream/*.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/others/*.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/media/*.patch
+# QSEECOM TEE 前端(指纹路线前置): 基于 v7.2.5 干净树, 独立于 gaokun3 DTS, 须在 0099 之前应用
+git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/qseecom-tee/*.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0099-arm64-gaokun3-import-local-dts-and-defconfig.patch
 # 0100 基于社区 DTS(0099 之后)的触屏上下文, 必须在 0099 之后应用, 因此与其并列放 patches/ 根
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0100-arm64-dts-qcom-sc8280xp-huawei-gaokun3-select-SPI-mode-for-touchscreen.patch
