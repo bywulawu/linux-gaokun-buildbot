@@ -6,8 +6,8 @@ Subject: [PATCH] arm64: gaokun3: import local dts and defconfig
 ---
  .../qcom/sc8280xp-huawei-gaokun3-camera.dtsi  | 307 +++++++++++
  .../boot/dts/qcom/sc8280xp-huawei-gaokun3.dts | 442 ++++++++++++----
- arch/arm64/configs/gaokun3_defconfig          | 490 ++++++++++++++++++
- 3 files changed, 1140 insertions(+), 101 deletions(-)
+ arch/arm64/configs/gaokun3_defconfig          | 494 ++++++++++++++++++
+ 3 files changed, 1142 insertions(+), 101 deletions(-)
  create mode 100644 arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3-camera.dtsi
  create mode 100644 arch/arm64/configs/gaokun3_defconfig
 
@@ -1099,10 +1099,10 @@ index cd575e20d..94e7eeb7e 100644
 +#include "sc8280xp-huawei-gaokun3-camera.dtsi"
 diff --git a/arch/arm64/configs/gaokun3_defconfig b/arch/arm64/configs/gaokun3_defconfig
 new file mode 100644
-index 000000000..f95adc9bf
+index 000000000..524da8fee9d 100644
 --- /dev/null
 +++ b/arch/arm64/configs/gaokun3_defconfig
-@@ -0,0 +1,492 @@
+@@ -0,0 +1,494 @@
 +CONFIG_LOCALVERSION="-gaokun3"
 +# CONFIG_LOCALVERSION_AUTO is not set
 +CONFIG_SYSVIPC=y
@@ -1284,6 +1284,8 @@ index 000000000..f95adc9bf
 +CONFIG_QCOM_TZMEM_MODE_SHMBRIDGE=y
 +CONFIG_QCOM_QSEECOM=y
 +CONFIG_QCOM_QSEECOM_UEFISECAPP=y
++CONFIG_TEE=y
++CONFIG_TEE_QSEECOM=y
 +CONFIG_OF_OVERLAY=y
 +CONFIG_ZRAM=m
 +CONFIG_ZRAM_BACKEND_ZSTD=y
@@ -1595,6 +1597,3 @@ index 000000000..f95adc9bf
 +CONFIG_DEBUG_FS=y
 +# CONFIG_FTRACE is not set
 +# CONFIG_RUNTIME_TESTING_MENU is not set
--- 
-2.43.0
-
