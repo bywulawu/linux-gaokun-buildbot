@@ -1,0 +1,68 @@
+From 68ba6244110c16f33d0827ee9fe38f1a6dd0e781 Mon Sep 17 00:00:00 2001
+From: wulawu <Mr.wulawu@oulook.com>
+Date: Thu, 8 Oct 2026 00:46:39 +0800
+Subject: [PATCH] =?UTF-8?q?firmware:=20qcom:=20tzmem:=20=E6=89=93=E5=8D=B0?=
+ =?UTF-8?q?=20SHM=20Bridge=20=E5=90=AF=E7=94=A8=E4=B8=8E=E5=88=9B=E5=BB=BA?=
+ =?UTF-8?q?=E7=BB=93=E6=9E=9C?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+QSEECOM 加载 TA 时 staging 缓冲来自 TZMem 池, 而本平台
+CONFIG_QCOM_TZMEM_MODE_SHMBRIDGE=y, Kconfig 明确说明该模式下
+传给 TrustZone 的缓冲必须由 TZMem 分配, 否则 TZ 拒绝使用.
+但 qcom_scm_shm_bridge_enable() 的返回值与 using_shm_bridge 结果
+此前完全不可见: 失败时驱动静默退化为普通 carveout, 成功的
+shm_bridge_create 也不留任何日志(__scm_smc_call 仅在 a0!=0 时打印),
+因此无法判断 APP_START 被拒是否与缓冲未过 SHM Bridge 有关.
+
+在 qcom_tzmem_init() 打印 enable 返回值与 using_shm_bridge,
+在 qcom_tzmem_shm_bridge_create() 分别打印跳过与创建成功
+(paddr/size/handle) 两种情形. 仅诊断用途, 定位后移除.
+---
+ drivers/firmware/qcom/qcom_tzmem.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/firmware/qcom/qcom_tzmem.c b/drivers/firmware/qcom/qcom_tzmem.c
+index 0635cbe..80433ab 100644
+--- a/drivers/firmware/qcom/qcom_tzmem.c
++++ b/drivers/firmware/qcom/qcom_tzmem.c
+@@ -103,6 +103,10 @@ static int qcom_tzmem_init(void)
+ 	if (!ret)
+ 		qcom_tzmem_using_shm_bridge = true;
+ 
++	dev_info(qcom_tzmem_dev,
++		 "SHM Bridge enable returned %d, using_shm_bridge=%d\n",
++		 ret, qcom_tzmem_using_shm_bridge);
++
+ 	return ret;
+ 
+ notsupp:
+@@ -127,8 +131,12 @@ int qcom_tzmem_shm_bridge_create(phys_addr_t paddr, size_t size, u64 *handle)
+ 	u64 pfn_and_ns_perm, ipfn_and_s_perm, size_and_flags;
+ 	int ret;
+ 
+-	if (!qcom_tzmem_using_shm_bridge)
++	if (!qcom_tzmem_using_shm_bridge) {
++		dev_info(qcom_tzmem_dev,
++			 "SHM Bridge disabled, paddr 0x%pa size %zu left unbridged\n",
++			 &paddr, size);
+ 		return 0;
++	}
+ 
+ 	pfn_and_ns_perm = paddr | QCOM_SCM_PERM_RW;
+ 	ipfn_and_s_perm = paddr | QCOM_SCM_PERM_RW;
+@@ -145,6 +153,10 @@ int qcom_tzmem_shm_bridge_create(phys_addr_t paddr, size_t size, u64 *handle)
+ 		return ret;
+ 	}
+ 
++	dev_info(qcom_tzmem_dev,
++		 "SHM Bridge created: paddr 0x%pa size %zu handle 0x%llx\n",
++		 &paddr, size, *handle);
++
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(qcom_tzmem_shm_bridge_create);
+-- 
+2.53.0
+

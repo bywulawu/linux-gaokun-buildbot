@@ -83,6 +83,10 @@ git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0104-tee-qseecom-log-staging-image-p
 # 0105 诊断实锤: 动态分配 CMA 落到 34GiB 孤岛(0x87f000000), TZ 拒绝孤岛地址(APP_START 与 uefisecapp APP_SEND 双证, a0=-2),
 # 固定 CMA 到主 DDR 空闲窗口 0xc8600000(16MiB 对齐, <4GiB). 0103/0104 保留至 TA 加载成功后再移除
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0105-arm64-dts-qcom-sc8280xp-huawei-gaokun3-pin-qseecom-cma-below-4gib.patch
+# 0106 诊断: 0105 已证 CMA 地址被接受, 但 APP_START 仍 a0=-2. 本平台 TZMEM 走 SHM Bridge 模式(Kconfig 原文: 该模式下传给 TZ
+# 的缓冲必须由 TZMem 分配, 否则 TZ 拒绝使用), staging 缓冲的 bridge 启用/创建结果此前无任何日志(成功 SMC 不打印),
+# 无法判断 APP_START 被拒是否与缓冲未过 bridge 有关. 打印 enable 返回值/using_shm_bridge 与每次 create 的 paddr/size/handle. 定位后移除
+git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0106-firmware-qcom-tzmem-log-shm-bridge-state.patch
 
 ccache -z || true
 build_variant "$KERN_SRC" "$KERN_OUT"
