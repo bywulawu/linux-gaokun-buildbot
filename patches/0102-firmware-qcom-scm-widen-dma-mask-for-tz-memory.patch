@@ -1,0 +1,50 @@
+From 49f9ac5326a843e96c8b8de9d08f6dcfc50e258e Mon Sep 17 00:00:00 2001
+From: t <t@l>
+Date: Wed, 7 Oct 2026 20:52:28 +0800
+Subject: [PATCH] =?UTF-8?q?firmware:=20qcom:=20scm:=20=E6=94=BE=E5=AE=BD?=
+ =?UTF-8?q?=20DMA=20mask=20=E4=BB=A5=E5=85=81=E8=AE=B8=E9=AB=98=E4=BD=8D?=
+ =?UTF-8?q?=20CMA=20=E7=9A=84=20TZ=20=E5=86=85=E5=AD=98?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+scm 平台设备在设备树中没有 dma-ranges，of_dma_configure 默认只给
+32 位 coherent mask。在 16 GiB 机型上 per-device CMA（qseecom-cma）
+落在 4 GiB 之上，__dma_direct_alloc_pages() 里 dma_coherent_ok() 会
+拒绝这些页并静默退回 buddy 的 order-11 分配——后者在运行中的系统
+上几乎必然失败，qcom_tzmem_pool_new() 于是返回 -ENOMEM，QSEE 应用
+（fingerpr）的 staging 内存永远申请不到。
+
+将 SCM 的 DMA mask 放宽到 64 位，使 TrustZone 共享内存可以使用
+DRAM 中任意位置的 CMA 页。
+
+本补丁属于指纹按钮修复系列的内核侧部分，与 0001-0003（qseecom-tee
+补丁系列）和 0101（per-device CMA）配套。
+---
+ drivers/firmware/qcom/qcom_scm.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/firmware/qcom/qcom_scm.c b/drivers/firmware/qcom/qcom_scm.c
+index 993efd1..5625ade 100644
+--- a/drivers/firmware/qcom/qcom_scm.c
++++ b/drivers/firmware/qcom/qcom_scm.c
+@@ -3194,6 +3194,16 @@ static int qcom_scm_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return ret;
+ 
++	/*
++	 * The default 32-bit coherent mask rejects CMA pages above 4 GiB on
++	 * large-memory machines, which silently kills the TrustZone staging
++	 * allocations.  Accept the whole of DRAM instead.
++	 */
++	ret = dma_set_mask_and_coherent(scm->dev, DMA_BIT_MASK(64));
++	if (ret)
++		return dev_err_probe(scm->dev, ret,
++				     "Failed to widen the SCM DMA mask\n");
++
+ 	ret = of_reserved_mem_device_init(scm->dev);
+ 	if (ret && ret != -ENODEV)
+ 		return dev_err_probe(scm->dev, ret,
+-- 
+2.53.0
+

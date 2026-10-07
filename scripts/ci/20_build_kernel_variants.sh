@@ -74,6 +74,8 @@ git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0099-arm64-gaokun3-import-local-dts-
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0100-arm64-dts-qcom-sc8280xp-huawei-gaokun3-select-SPI-mode-for-touchscreen.patch
 # 0101 给 SCM 绑定专属 CMA, 供 QSEECOM TEE 加载 TA 的 staging 大块连续内存, 基于 0100 之后的 DTS
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0101-arm64-dts-qcom-sc8280xp-huawei-gaokun3-add-QSEECOM-CMA-for-TA-staging.patch
+# 0102 放宽 SCM 设备 DMA mask 到 64 位, 否则 16GiB 机型上 CMA 池(4GiB 以上)被 dma_coherent_ok 拒收, staging 分配静默失败
+git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0102-firmware-qcom-scm-widen-dma-mask-for-tz-memory.patch
 
 ccache -z || true
 build_variant "$KERN_SRC" "$KERN_OUT"
