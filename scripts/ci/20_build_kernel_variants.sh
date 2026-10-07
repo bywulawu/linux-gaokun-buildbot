@@ -76,6 +76,10 @@ git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0100-arm64-dts-qcom-sc8280xp-huawei-
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0101-arm64-dts-qcom-sc8280xp-huawei-gaokun3-add-QSEECOM-CMA-for-TA-staging.patch
 # 0102 放宽 SCM 设备 DMA mask 到 64 位, 否则 16GiB 机型上 CMA 池(4GiB 以上)被 dma_coherent_ok 拒收, staging 分配静默失败
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0102-firmware-qcom-scm-widen-dma-mask-for-tz-memory.patch
+# 0103/0104 诊断: 加载 fingerpr TA 时 APP_START 被 TZ 以 SMC 级错误拒绝, 但 remap_error 默认分支把未知负码一律映射为 -EINVAL,
+# 同时镜像物理地址无日志, 无法区分地址(高位 CMA)与参数(arginfo)问题. 定位后移除
+git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0103-firmware-qcom-scm-log-raw-smc-result.patch
+git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0104-tee-qseecom-log-staging-image-phys.patch
 
 ccache -z || true
 build_variant "$KERN_SRC" "$KERN_OUT"

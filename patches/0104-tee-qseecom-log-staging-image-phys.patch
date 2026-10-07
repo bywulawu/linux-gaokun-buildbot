@@ -1,0 +1,36 @@
+From db506ca86440fc6ec943a7d882f3e5bc9b684c08 Mon Sep 17 00:00:00 2001
+From: wulawu <Mr.wulawu@oulook.com>
+Date: Wed, 7 Oct 2026 21:46:32 +0800
+Subject: [PATCH 2/2] =?UTF-8?q?tee:=20qseecom:=20=E6=89=93=E5=8D=B0=20TA?=
+ =?UTF-8?q?=20staging=20=E9=95=9C=E5=83=8F=E7=9A=84=E7=89=A9=E7=90=86?=
+ =?UTF-8?q?=E5=9C=B0=E5=9D=80?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+APP_START 把镜像物理地址作为裸值传给 TZ(owner 50/svc 1/cmd 1). 若 TZ
+因地址越界拒绝(如 per-device CMA 落在 4GiB 以上), 当前日志没有任何
+镜像地址信息可供判断. supp_load_app 里补一行 dev_info, 与 0103 的原始
+SMC 返回值对照即可区分地址问题与参数问题. 仅诊断用途, 定位后移除.
+---
+ drivers/tee/qseecom/core.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/tee/qseecom/core.c b/drivers/tee/qseecom/core.c
+index 402ba88..f5dd92c 100644
+--- a/drivers/tee/qseecom/core.c
++++ b/drivers/tee/qseecom/core.c
+@@ -1518,6 +1518,10 @@ static int qseecom_tee_supp_load_app(struct tee_context *ctx,
+ 	img_phys = ALIGN(stage_phys, QSEECOM_TEE_IMAGE_ALIGN);
+ 	aligned = stage + (img_phys - stage_phys);
+ 
++	dev_info(qtee->dev,
++		 "staging '%s': img_phys=%pap mdt_len=%zu img_len=%zu\n",
++		 app_name, &img_phys, mdt_len, img_len);
++
+ 	len = qcom_mdt_read_image(qtee->dev, mdt, fw_name, aligned, img_len);
+ 	if (len < 0)
+ 		ret = len;
+-- 
+2.53.0
+
