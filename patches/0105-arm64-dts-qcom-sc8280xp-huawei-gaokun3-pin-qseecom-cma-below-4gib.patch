@@ -1,0 +1,49 @@
+From b969a2debfed206374501066739bab5e2bcae229 Mon Sep 17 00:00:00 2001
+From: t <t@l>
+Date: Wed, 7 Oct 2026 22:15:24 +0800
+Subject: [PATCH] =?UTF-8?q?arm64:=20dts:=20qcom:=20sc8280xp-huawei-gaokun3?=
+ =?UTF-8?q?:=20=E5=9B=BA=E5=AE=9A=20QSEECOM=20CMA=20=E5=88=B0=204GiB=20?=
+ =?UTF-8?q?=E4=BB=A5=E4=B8=8B?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+诊断日志显示动态分配的 qseecom-cma 落到 0x87f000000(34GiB 的 DDR
+孤岛): OF: reserved mem: 0x87f000000..0x87fffffff map reusable
+qseecom-cma. TZ 的内存映射不覆盖该孤岛, 导致所有携带该区域内
+地址的 SMC 调用被一律拒绝(remap 后 -22):
+- QSEE_OS/APP_MGR APP_START(fingerpr TA, img_phys=0x87f400000)
+- TZ_APPS/APP_ID APP_SEND(uefisecapp 请求缓冲 0x87f001000, 上游
+  原版编码, 该调用在其它白名单机型上正常工作)
+
+两者编码不同、目标不同, 失败码相同, 唯一共同点即地址落在孤岛,
+排除 arginfo 编码问题, 定位为地址校验失败.
+
+固定 reg 到主 DDR 空闲窗口 c8600000-ffa75fff 内的 0xc8600000:
+16MiB 对齐、低于 4GiB, 窗口内无任何已注册预留.
+---
+ arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
+index 14e9338..a421db0 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-huawei-gaokun3.dts
+@@ -219,6 +219,14 @@ gpu_mem: gpu-mem@8bf00000 {
+ 		qseecom_cma: qseecom-cma {
+ 			compatible = "shared-dma-pool";
+ 			reusable;
++			/*
++			 * 固定选址: 不加 reg 时动态分配会落到 34GiB 的 DDR 孤岛
++			 * (0x87f000000, 诊断日志 OF: reserved mem 证实), TZ 的
++			 * 内存映射不覆盖该孤岛, APP_START/APP_SEND 携带孤岛地址
++			 * 一律被拒 (a0=-2, remap 后 -22). 0xc8600000 位于主 DDR
++			 * 空闲窗口 c8600000-ffa75fff 内, 16MiB 对齐且低于 4GiB.
++			 */
++			reg = <0x0 0xc8600000 0x0 0x1000000>;
+ 			size = <0x0 0x1000000>;
+ 			alignment = <0x0 0x100000>;
+ 		};
+-- 
+2.53.0
+

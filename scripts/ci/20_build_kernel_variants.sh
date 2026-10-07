@@ -80,6 +80,9 @@ git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0102-firmware-qcom-scm-widen-dma-mas
 # 同时镜像物理地址无日志, 无法区分地址(高位 CMA)与参数(arginfo)问题. 定位后移除
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0103-firmware-qcom-scm-log-raw-smc-result.patch
 git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0104-tee-qseecom-log-staging-image-phys.patch
+# 0105 诊断实锤: 动态分配 CMA 落到 34GiB 孤岛(0x87f000000), TZ 拒绝孤岛地址(APP_START 与 uefisecapp APP_SEND 双证, a0=-2),
+# 固定 CMA 到主 DDR 空闲窗口 0xc8600000(16MiB 对齐, <4GiB). 0103/0104 保留至 TA 加载成功后再移除
+git -C "$KERN_SRC" am "$GAOKUN_DIR"/patches/0105-arm64-dts-qcom-sc8280xp-huawei-gaokun3-pin-qseecom-cma-below-4gib.patch
 
 ccache -z || true
 build_variant "$KERN_SRC" "$KERN_OUT"
