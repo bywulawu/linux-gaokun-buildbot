@@ -20,29 +20,66 @@ printf 'layout=bls\n' > /etc/kernel/install.conf
 printf 'qcom/@DTB_NAME@\n' > /etc/kernel/devicetree
 
 # 失败必须显式暴露：静默生成残缺 initrd 会让 dpkg 显示成功、重启才进不了系统
+# 实测(ubuntu 26.04 + initramfs-tools)：/lib/modules/@KREL@ 缺失时
+# update-initramfs 只发 W: 并返回 0，照样产出约 30MB 的空 initrd。
+# 因此先硬校验模块目录，生成后再校验产物大小，把"假成功"变成真失败。
+[ -d /lib/modules/@KREL@ ] || {
+  echo "ERROR: /lib/modules/@KREL@ 不存在，拒绝生成空 initramfs。" >&2
+  echo "       请与 linux-modules-gaokun3 (= 同版本) 一并安装。" >&2
+  exit 1
+}
 if ! update-initramfs -c -k @KREL@; then
   echo "ERROR: failed to generate initramfs for @KREL@" >&2
   exit 1
+fi
+initrd_img="/boot/initrd.img-@KREL@"
+[ -s "$initrd_img" ] || {
+  echo "ERROR: $initrd_img 未生成" >&2
+  exit 1
+}
+# 大小阈值挡不住"无模块": 空 initrd 也有约 30MB(只剩框架与固件)。
+# 实测 lsinitramfs 数 .ko: 本体 115 个, 缺 /lib/modules/@KREL@ 时 0 个。
+# lsinitramfs 属 initramfs-tools, 缺失时退回大小底线。
+if command -v lsinitramfs >/dev/null 2>&1; then
+  ko_count="$(lsinitramfs "$initrd_img" 2>/dev/null | grep -c "lib/modules/@KREL@/.*\.ko$" || true)"
+  [ "${ko_count:-0}" -ge 1 ] || {
+    echo "ERROR: $initrd_img 不含 lib/modules/@KREL@ 的 .ko, 疑似空 initramfs" >&2
+    exit 1
+  }
+else
+  initrd_size="$(stat -c '%s' "$initrd_img" 2>/dev/null || echo 0)"
+  [ "$initrd_size" -ge 1048576 ] || {
+    echo "ERROR: $initrd_img 仅 ${initrd_size} 字节, 疑似空 initramfs" >&2
+    exit 1
+  }
 fi
 
 # 注册/刷新 systemd-boot 的 BLS 条目（复用上方临时 devicetree 与镜像预置的 /etc/kernel/cmdline）。
 # 仅在 ESP 真实挂载到本机时执行：打包 chroot 里 /boot/efi 只是普通目录（未挂载 loop 分区），
 # 此时写入的条目会落进 rootfs 挂载点背后、被 ESP 遮蔽。用 mountpoint 按设备号判定，不看 /proc/mounts，
 # 以免把宿主挂载状态误判进 chroot。镜像内首批条目由 50_make_image_*.sh 在 ESP 挂载后生成。
+# /boot/firmware 是 Fedora 新式布局的 ESP 挂载点，缺了它整段会在 Fedora 上静默跳过。
 if command -v kernel-install >/dev/null 2>&1 &&
-   { mountpoint -q /boot/efi || mountpoint -q /efi; }; then
-  kernel-install --entry-token=machine-id remove @KREL@ || true
+   { mountpoint -q /boot/efi || mountpoint -q /efi || mountpoint -q /boot/firmware; }; then
+  # 不先 remove 再 add —— kernel-install add 对既有条目是幂等覆盖，
+  # 预先 remove 会把 "add 失败" 变成 "该内核启动项彻底消失"（与 rpm 侧同一结论）
   kernel-install --verbose --make-entry-directory=yes --entry-token=machine-id add \
-    @KREL@ /boot/vmlinuz-@KREL@ /boot/initrd.img-@KREL@
+    @KREL@ /boot/vmlinuz-@KREL@ /boot/initrd.img-@KREL@ || {
+    echo "ERROR: failed to register BLS entry for @KREL@" >&2
+    exit 1
+  }
 
-  # 清理历史装机/升级残留的坏条目: 引用的内核文件已不在 ESP 上的条目一律删除,
+  # 清理本内核残留的坏条目: 引用的内核文件已不在 ESP 上的条目一律删除,
   # 避免 systemd-boot 的 default 落到坏条目上(bootctl 会告 default entry is broken)
-  for esp in /boot/efi /efi; do
+  # 只动本 KREL 的条目: 按 "linux 路径是否存在" 对全量条目一刀切,
+  # 会误删 XBOOTLDR/ESP 分离布局下其它内核的可启动条目
+  for esp in /boot/efi /efi /boot/firmware; do
     mountpoint -q "$esp" || continue
-    for conf in "$esp"/loader/entries/*.conf; do
+    for conf in "$esp"/loader/entries/*-@KREL@.conf; do
       [ -e "$conf" ] || continue
       linux_path="$(sed -n 's/^linux[[:space:]]*//p' "$conf")"
       if [ -n "$linux_path" ] && [ ! -e "$esp$linux_path" ]; then
+        echo "gaokun3: removing stale boot entry $conf" >&2
         rm -f "$conf"
       fi
     done

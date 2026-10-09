@@ -1,1 +1,14 @@
-depmod -a @KREL@ 2>/dev/null || true
+depmod -a @KREL@ || {
+  echo "ERROR: depmod -a @KREL@ failed" >&2
+  exit 1
+}
+# image 包在 Depends 链上先于本包 configure, 它生成的 initrd 未必与本包
+# 落盘的模块一致；这里在其存在时刷新一次, 保证 initrd 内容与磁盘模块一致。
+# 静默 depmod 失败(旧写法 2>/dev/null || true)会放过 vermagic 不匹配等
+# 真实问题, 表现为内核起来后一堆模块加载失败。
+if [ -e /boot/initrd.img-@KREL@ ] && command -v update-initramfs >/dev/null 2>&1; then
+  update-initramfs -u -k @KREL@ || {
+    echo "ERROR: update-initramfs -u @KREL@ failed" >&2
+    exit 1
+  }
+fi

@@ -27,7 +27,7 @@ cp -a boot %{buildroot}/
 cp -a usr %{buildroot}/
 
 %posttrans
-if [ "$1" -ge 1 ] && command -v dracut >/dev/null 2>&1 && command -v kernel-install >/dev/null 2>&1; then
+if [ "${1:-0}" -ge 1 ] && command -v dracut >/dev/null 2>&1 && command -v kernel-install >/dev/null 2>&1; then
     temp_conf_root="$(mktemp -d)"
     cleanup() {
         rm -rf "$temp_conf_root"
@@ -39,6 +39,7 @@ if [ "$1" -ge 1 ] && command -v dracut >/dev/null 2>&1 && command -v kernel-inst
     else
         cmdline="$(tr ' ' '\n' </proc/cmdline | grep -ve '^BOOT_IMAGE=' -e '^initrd=' | tr '\n' ' ')"
     fi
+    cmdline="${cmdline#" "}"
     cmdline="${cmdline%" "}"
 
     printf 'layout=bls\n' > "$temp_conf_root/install.conf"
@@ -48,18 +49,49 @@ if [ "$1" -ge 1 ] && command -v dracut >/dev/null 2>&1 && command -v kernel-inst
     install -d /etc/kernel/install.d
     ln -sf /dev/null /etc/kernel/install.d/51-dracut-rescue.install
     kernel-install --entry-token=machine-id remove 0-rescue >/dev/null 2>&1 || :
-    rm -rf /boot/*0-rescue* \
-           /boot/efi/*/0-rescue \
-           /boot/efi/loader/entries/*-0-rescue.conf >/dev/null 2>&1 || :
+    # 只清本 KREL 的 rescue 产物: 旧的 /boot/*0-rescue* 通配会命中其它
+    # 内核(含发行版自带内核)的同名 rescue 文件, /boot/efi/*/0-rescue 也会
+    # 遍历所有 machine-id 目录
+    rm -rf /boot/*0-rescue-@KREL@* \
+           /boot/efi/*/0-rescue-@KREL@ \
+           /boot/efi/loader/entries/*-0-rescue-@KREL@.conf >/dev/null 2>&1 || :
 
     # 与 deb 侧 postinst 相同的失败语义: 静默生成残缺 initrd / 缺失 BLS 条目会让
     # dnf 显示成功、重启才进不了系统。scriptlet 失败必须显式可见。
     # 不先 remove 再 add —— kernel-install add 对既有条目是幂等覆盖, 预先 remove
     # 会把 "add 失败" 变成 "该内核启动项彻底消失"。
+    # 缺模块时 dracut 只告警并返回 0, 同样按失败处理; 不在此处加
+    # Requires: kernel-modules —— modules spec 已反向 Requires 本包,
+    # 双向依赖会成循环依赖, 因此用显式校验替代。
+    [ -d /lib/modules/@KREL@ ] || {
+        echo "ERROR: /lib/modules/@KREL@ 不存在, 拒绝生成 initramfs。" >&2
+        echo "       请与 kernel-modules-gaokun3 (= 同版本) 一并安装。" >&2
+        exit 1
+    }
     dracut --force --kver @KREL@ || {
         echo "ERROR: failed to generate initramfs for @KREL@" >&2
         exit 1
     }
+    initrd_img="/boot/initramfs-@KREL@.img"
+    [ -s "$initrd_img" ] || {
+        echo "ERROR: $initrd_img 未生成" >&2
+        exit 1
+    }
+    # 大小阈值挡不住"无模块": 空 initramfs 也有几十 MB。dracut 随附
+    # lsinitrd, 用它直接查 .ko; 工具缺失时退回大小底线
+    if command -v lsinitrd >/dev/null 2>&1; then
+        ko_count="$(lsinitrd "$initrd_img" 2>/dev/null | grep -c "lib/modules/@KREL@/.*\.ko$" || true)"
+        [ "${ko_count:-0}" -ge 1 ] || {
+            echo "ERROR: $initrd_img 不含 lib/modules/@KREL@ 的 .ko, 疑似空 initramfs" >&2
+            exit 1
+        }
+    else
+        initrd_size="$(stat -c '%s' "$initrd_img" 2>/dev/null || echo 0)"
+        [ "$initrd_size" -ge 1048576 ] || {
+            echo "ERROR: $initrd_img 仅 ${initrd_size} 字节, 疑似空 initramfs" >&2
+            exit 1
+        }
+    fi
     KERNEL_INSTALL_CONF_ROOT="$temp_conf_root" \
         kernel-install --make-entry-directory=yes --entry-token=machine-id add \
         @KREL@ /boot/vmlinuz-@KREL@ || {
@@ -67,14 +99,18 @@ if [ "$1" -ge 1 ] && command -v dracut >/dev/null 2>&1 && command -v kernel-inst
         exit 1
     }
 
-    # 清理历史装机/升级残留的坏条目: 引用的内核文件已不在 ESP 上的条目一律删除,
+    # 清理本内核残留的坏条目: 引用的内核文件已不在 ESP 上的条目一律删除,
     # 避免 systemd-boot 的 default 落到坏条目上(bootctl 会告 default entry is broken)
-    for esp in /boot/efi /efi; do
+    # 只动本 KREL 的条目: 按 "linux 路径是否存在" 对全量条目一刀切,
+    # 会误删 XBOOTLDR/ESP 分离布局下其它内核的可启动条目
+    # /boot/firmware: Fedora 新式布局的 ESP 挂载点
+    for esp in /boot/efi /efi /boot/firmware; do
         mountpoint -q "$esp" || continue
-        for conf in "$esp"/loader/entries/*.conf; do
+        for conf in "$esp"/loader/entries/*-@KREL@.conf; do
             [ -e "$conf" ] || continue
             linux_path="$(sed -n 's/^linux[[:space:]]*//p' "$conf")"
             if [ -n "$linux_path" ] && [ ! -e "$esp$linux_path" ]; then
+                echo "gaokun3: removing stale boot entry $conf" >&2
                 rm -f "$conf"
             fi
         done
@@ -84,6 +120,14 @@ fi
 %preun
 if [ "$1" -eq 0 ] && command -v kernel-install >/dev/null 2>&1; then
     kernel-install --entry-token=machine-id remove @KREL@ >/dev/null 2>&1 || :
+fi
+
+%postun
+if [ "$1" -eq 0 ] && [ -L /etc/kernel/install.d/51-dracut-rescue.install ] \
+   && [ "$(readlink -f /etc/kernel/install.d/51-dracut-rescue.install)" = "/dev/null" ]; then
+    # 撤销 %posttrans 里对全局 install.d 的屏蔽: 它不在 %files 里、也没有
+    # 还原路径, 卸载后宿主机的 dracut rescue 生成会被永久禁用
+    rm -f /etc/kernel/install.d/51-dracut-rescue.install
 fi
 
 %files
