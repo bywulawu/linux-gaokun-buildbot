@@ -12,8 +12,7 @@ The image pipeline now uses `systemd-boot` by default and can optionally build a
 
 - `patches/`: kernel patches and device support changes
 - `defconfig/`: local kernel configuration used by CI/manual builds
-- `drivers/`: local mirrors of the patched driver sources kept in the patch series
-- `dts/`: local mirrors of the patched device tree sources kept in the patch series
+- `dts/`: source of the device tree and defconfig embedded in patch `0099` (kept in sync byte-for-byte; regenerate with `git am` into a vanilla tree and diff if in doubt)
 - `docs/`: bilingual usage/build guides and platform notes
 - `firmware/`: minimal firmware bundle used by the image build
 - `packaging/`: distro kernel and firmware package templates and metadata
