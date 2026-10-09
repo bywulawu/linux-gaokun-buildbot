@@ -73,7 +73,7 @@
 
 ## 快速开始
 
-- Release：<https://github.com/KawaiiHachimi/linux-gaokun-build/releases>
+- Release：<https://github.com/bywulawu/linux-gaokun-build/releases>
 - 平台说明（机型鉴别与能力边界）：[中文](platform_notes_zh.md) | [English](platform_notes_en.md)
 - 双系统引导指南：[English](dual_boot_guide_en.md) | [中文](dual_boot_guide_zh.md)
 - EL2 实现说明：[English](el2_kvm_guide_en.md) | [中文](el2_kvm_guide_zh.md)

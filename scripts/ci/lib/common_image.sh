@@ -9,13 +9,10 @@ install_common_image_assets() {
     "tools/monitors/gdm-monitor-sync:/usr/local/bin/gdm-monitor-sync"
     "tools/touchscreen-tuner/touchscreen-tune:/usr/local/bin/touchscreen-tune"
     "tools/hwcheck/gaokun-check:/usr/local/bin/gaokun-check"
-    "tools/growroot/gaokun-grow-rootfs:/usr/local/bin/gaokun-grow-rootfs"
-    "tools/installer/gaokun-install:/usr/local/bin/gaokun-install"
   )
   local service_assets=(
     "tools/bluetooth/patch-nvm-bdaddr.service:/etc/systemd/system/patch-nvm-bdaddr.service"
     "tools/monitors/gdm-monitor-sync.service:/etc/systemd/system/gdm-monitor-sync.service"
-    "tools/growroot/gaokun-grow-rootfs.service:/etc/systemd/system/gaokun-grow-rootfs.service"
   )
   local data_assets=(
     "tools/audio/sc8280xp.conf:/usr/share/alsa/ucm2/Qualcomm/sc8280xp/sc8280xp.conf"
@@ -25,7 +22,6 @@ install_common_image_assets() {
     "tools/image-assets/usr/local/share/gaokun/monitors.xml:/usr/local/share/gaokun/monitors.xml"
     "tools/image-assets/etc/systemd/zram-generator.conf:/etc/systemd/zram-generator.conf"
     "tools/image-assets/etc/systemd/journald.conf.d/90-gaokun.conf:/etc/systemd/journald.conf.d/90-gaokun.conf"
-    "tools/installer/gaokun-install.desktop:/usr/share/applications/gaokun-install.desktop"
     # 屏蔽 Lenovo X13s 启用包, 防止软件更新器把它们连带一串依赖装到 gaokun3 上
     "tools/image-assets/etc/apt/preferences.d/no-lenovo-x13s:/etc/apt/preferences.d/no-lenovo-x13s"
   )

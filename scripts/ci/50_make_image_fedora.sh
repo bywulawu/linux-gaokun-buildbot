@@ -32,7 +32,7 @@ sudo mkfs.btrfs -f -L rootfs "${LOOP}p2"
 EFI_UUID="$(sudo blkid -s UUID -o value "${LOOP}p1")"
 ROOT_UUID="$(sudo blkid -s UUID -o value "${LOOP}p2")"
 
-MNT=/mnt/ego-fedora
+MNT="${MNT:-/mnt/ego-fedora}"
 cleanup() {
   set +e
   sudo umount "$MNT/dev/pts" 2>/dev/null || true
@@ -143,7 +143,7 @@ EOF
 # sshd 默认不启用: 公开口令 + 免密 sudo 的组合不该默认暴露在网络上, 需要时手动开启
 # (sudo systemctl enable --now sshd)
 systemctl enable gdm NetworkManager \
-  gdm-monitor-sync.service gaokun-grow-rootfs.service \
+  gdm-monitor-sync.service \
   patch-nvm-bdaddr.service || true
 
 # 平板桌面场景没有需要等网络的本机服务/mount，wait-online 在 Wi-Fi 下白等 7s+，禁用之

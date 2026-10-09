@@ -79,7 +79,7 @@ ensure_source_tree() {
     if [[ ! -d "$GAOKUN_DIR" ]]; then
         echo "linux-gaokun-buildbot not found. Cloning..."
         mkdir -p "$HOME/gaokun"
-        git clone https://github.com/KawaiiHachimi/linux-gaokun-buildbot "$GAOKUN_DIR"
+        git clone https://github.com/bywulawu/linux-gaokun-buildbot "$GAOKUN_DIR"
     fi
 
     # vX.Y.Z 是 stable 标签，只存在于 stable 树；torvalds 主线树只有 vX.Y 正式版标签，

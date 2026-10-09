@@ -56,7 +56,7 @@ Notes:
 
 - After reboot, you should enter the `systemd-boot` boot menu.
 - The menu allows selecting Windows or Linux distribution to boot.
-- After entering Linux, `gaokun-grow-rootfs.service` automatically grows the rootfs to fill the target partition on first boot (and takes in any free space right after the partition). If it does not kick in, use gnome-disks or run `growpart`/`resize2fs`/`btrfs filesystem resize max /` manually.
+- After entering Linux, the rootfs only occupies the size written by the image. If the partition is larger than the image and you want to use all of it, enlarge the partition with gnome-disks, or from Linux run `growpart` (if there is free space after the partition) followed by `resize2fs` (ext4) or `btrfs filesystem resize max /` (btrfs).
 
 ## Additional Notes (EL2 Optional)
 

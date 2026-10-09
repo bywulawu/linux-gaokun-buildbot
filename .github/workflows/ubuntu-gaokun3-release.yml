@@ -20,7 +20,7 @@ on:
         required: true
         # mutter 随 gnome-shell 必装无需显式列；rsync 仅构建机需要（host deps 已装）；
         # git/vim/ripgrep/v4l-utils/screen 属开发调试工具，需要时进系统自行安装
-        default: "language-pack-gnome-zh-hans ibus-libpinyin firefox systemd-zram-generator cloud-guest-utils gnome-tweaks gnome-shell-extension-manager mpv htop nano"
+        default: "language-pack-gnome-zh-hans ibus-libpinyin firefox systemd-zram-generator gnome-tweaks gnome-shell-extension-manager mpv htop nano"
       build_el2:
         description: Build and include optional -gaokun3-el2 kernel and EL2 EFI payloads
         required: true
@@ -265,13 +265,11 @@ jobs:
               apt-get install -y --no-install-recommends systemd-boot systemd-boot-efi
 
               # Base system tools (not user-configurable)
-              # cloud-guest-utils 提供 growpart: gaokun-install / gaokun-grow-rootfs 依赖它,
-              # 放进基础包而不是可选 extra_packages, 避免用户自定义包列表时装机扩容静默失效
               apt-get install -y \
                 iputils-ping iproute2 net-tools dnsutils traceroute \
                 xz-utils unzip zip bzip2 zstd p7zip-full \
                 wget curl ca-certificates gnupg lsb-release \
-                ssh less file sudo cloud-guest-utils
+                ssh less file sudo
 
               # dconf-cli: required by the image configuration step (dconf update writes screen-keyboard defaults)
               apt-get install -y dconf-cli

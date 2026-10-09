@@ -123,11 +123,24 @@ fi
 
 # ---------------------------------------------------------------- 视频硬解
 hdr "视频硬解 (venus)"
-nvideo=$(ls /dev/video[0-9]* 2>/dev/null | wc -l)
-if [[ $nvideo -gt 0 ]]; then
-    ok "venus 视频设备存在（/dev/video* x$nvideo）"
+# 不能直接数 /dev/video*: 本机 34 个节点里 32 个是相机 ISP(msm_vfe*), venus 只有 2 个。
+# 按 v4l2 设备名过滤, 否则"venus 设备存在(x34)"纯属误报
+venus_cnt=0
+venus_names=()
+for vdir in /sys/class/video4linux/video*; do
+    [[ -d "$vdir" ]] || continue
+    vname="$(cat "$vdir/name" 2>/dev/null || true)"
+    case "$vname" in
+        qcom-venus-*)
+            venus_cnt=$((venus_cnt + 1))
+            venus_names+=("$vname")
+            ;;
+    esac
+done
+if [[ $venus_cnt -gt 0 ]]; then
+    ok "venus 视频节点存在（${venus_names[*]}）"
 elif kdg 'venus' | grep -q .; then
-    warn "venus 已加载但无 /dev/video* 设备"
+    warn "venus 已加载但无视频节点（固件缺失？）"
 else
     warn "未检测到 venus（模块未加载或无固件）"
 fi

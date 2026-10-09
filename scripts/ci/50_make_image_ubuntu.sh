@@ -32,7 +32,7 @@ sudo mkfs.ext4 -L rootfs "${LOOP}p2"
 EFI_UUID="$(sudo blkid -s UUID -o value "${LOOP}p1")"
 ROOT_UUID="$(sudo blkid -s UUID -o value "${LOOP}p2")"
 
-MNT=/mnt/ego-ubuntu
+MNT="${MNT:-/mnt/ego-ubuntu}"
 cleanup() {
   set +e
   sudo umount "$MNT/dev/pts" 2>/dev/null || true
@@ -158,7 +158,7 @@ EOF
 # (sudo systemctl enable --now ssh)
 systemctl enable gdm NetworkManager \
   gaokun-fix-x11-unix.service gdm-monitor-sync.service \
-  gaokun-grow-rootfs.service patch-nvm-bdaddr.service || true
+  patch-nvm-bdaddr.service || true
 
 # 平板桌面场景没有需要等网络的本机服务/mount，wait-online 在 Wi-Fi 下白等 7s+，禁用之
 systemctl disable NetworkManager-wait-online.service || true

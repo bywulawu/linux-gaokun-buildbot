@@ -73,7 +73,7 @@ The image and local-install workflows now follow the standard `kernel-install` +
 
 ## Getting started
 
-- Release: <https://github.com/KawaiiHachimi/linux-gaokun-build/releases>
+- Release: <https://github.com/bywulawu/linux-gaokun-build/releases>
 - Platform notes – device variants & capability boundaries: [English](docs/platform_notes_en.md) | [中文](docs/platform_notes_zh.md)
 - Dual-boot guide: [English](docs/dual_boot_guide_en.md) | [中文](docs/dual_boot_guide_zh.md)
 - EL2 implementation notes: [English](docs/el2_kvm_guide_en.md) | [中文](docs/el2_kvm_guide_zh.md)

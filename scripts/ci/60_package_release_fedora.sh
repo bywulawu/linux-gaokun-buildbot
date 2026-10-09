@@ -67,6 +67,7 @@ ${EL2_RELEASE_BLOCK}
 
 - Username: \`user\`
 - Password: \`user\`
+- Security: the \`user\` account has passwordless sudo (\`/etc/sudoers.d/sudo-nopasswd\`), and SSH is disabled by default. Run \`passwd\` (and \`sudo rm /etc/sudoers.d/sudo-nopasswd\`) before exposing the device to untrusted networks.
 ${EL2_PAYLOAD_BLOCK}
 EOF
 
